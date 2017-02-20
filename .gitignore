@@ -1,2 +1,6 @@
+# Do not track virtual environment or data folders
 .venv
 PaHaW
+
+# Do not track compiled files
+*.pyc
