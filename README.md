@@ -5,8 +5,8 @@ Authors: Anthony Chen, Shreya Chippagiri, Robert Logan, Pratik Shetty
 
 pd-diag-net is a deep neural classifier which uses vocal samples to predict
 whether a patient has Parkinsons Disease. The model is trained using the
-[Parkinsons Speech Dataset](https://archive.ics.uci.edu/ml/datasets/Parkinson+Speech+Dataset+with++Multiple+Types+of+Sound+Recordings)
-publicly available for download from the UCI Machine Learning Repository.
+[Parkinsons Disease Handwriting Database](http://bdalab.utko.feec.vutbr.cz/)
+collected by the BDALab Research Group at Brno University of Technology.
 
 
 Installation
