@@ -42,10 +42,16 @@ licensing agreement. For more details please see the downloads section on
 Once the dataset has been downloaded, extract the compressed dataset into the
 project folder - i.e. 'PaHaW/' should be a directory at the root level.
 
-The data is loaded into NumPy arrays in the `process.py` script.
+The dataset can then be loaded into python by adding:
+```
+import process
+dataset = process.load_dataset()
+```
+to your script.
 
 ### Step 2: Train the model
 TBD
+
 
 ### Step 3: Run the model
 TBD - Something about reproducing the accuracy metrics included in our paper as
