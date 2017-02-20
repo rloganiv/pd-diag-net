@@ -35,7 +35,14 @@ Usage
 -----
 
 ### Step 1: Download and preprocess the data
-TBD
+In order to obtain access to the PaHaW database, you will need to fill out a
+licensing agreement. For more details please see the downloads section on
+[this website](http://bdalab.utko.feec.vutbr.cz/).
+
+Once the dataset has been downloaded, extract the compressed dataset into the
+project folder - i.e. 'PaHaW/' should be a directory at the root level.
+
+The data is loaded into NumPy arrays in the `process.py` script.
 
 ### Step 2: Train the model
 TBD
