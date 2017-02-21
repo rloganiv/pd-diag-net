@@ -51,7 +51,7 @@ to your script.
 
 ### Step 2: Training and evaluating the model
 As of now, evaluation of our model is done using k-fold cross validation. As such, training
-are tightly coupled. 
+and evaluation are tightly coupled. 
 
 K-Fold accuracy can be done by doing the following:
 ```
