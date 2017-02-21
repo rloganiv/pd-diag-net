@@ -15,9 +15,8 @@ class Subject(object):
     Attributes:
         info: Contains the subject charactersitics from the 'corpus_PaHaW.xlsx'
             spreadsheet.
-        task_1: Processed .svc data for task 1.
-        ...
-        task_8: Processed .scv data for task 8.
+        task: dict. Processed .svc data for tasks, e.g. Subject.task[i]
+            contains the numpy array of data corresponding to task i.
     """
     pass
 
@@ -100,14 +99,14 @@ def load_dataset():
     for row in corpus.iterrows():
         subject = Subject()
         subject.info = row[1]
+        subject.task = dict()
         # ID must be converted from int to fixed length string.
         subject_id = '%05d' % row[1].ID
         for i in xrange(1, 9):
             try:
                 svc_path = generate_svc_path(subject_id, i)
-                svc_data = parse_svc(svc_path)
-                attr = 'task_%i' % i
-                setattr(subject, attr, svc_data)
+                task_data = parse_svc(svc_path)
+                subject.task[i] = task_data
             except IOError:
                 print 'Subject %s did not perform task %i' % (subject_id, i)
         dataset[subject_id] = subject
