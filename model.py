@@ -1,4 +1,6 @@
 """Trains an LSTM model on the PaHaW dataset and evaluates using cross validation"""
+from keras.models import Sequential
+from keras.layers import Dense, Activation, LSTM
 
 import numpy as np
 import process
@@ -171,16 +173,16 @@ def create_datasets(data, train, test):
     return X_train, y_train, X_test, y_test
 
 def normalize_data(X_train, X_test):
-    """ Normalizes the following features in the training set to be in range [0, 1]. Then applies transformation 
+    """ Normalizes features in the training set to be in range [0, 1]. Then applies transformation 
         to test set. 
-        - Azimuth
-        - Altitude
-        - Pressure
 
     Args:
         X_train: numpy array. 3D matrix containing our training sequences 
         X_test: numpy array. 3D array containing our test sequences
     """
+    max_feature_val = np.max(np.max(X_train, axis=1), axis=0) # highest feature values in training set
+    X_train /= max_feature_val
+    X_test /= max_feature_val
 
 def evaluate_model():
     """ Loads the data dictionary and then performs K-Fold cross validation to obtain the classification accuracy
@@ -190,14 +192,29 @@ def evaluate_model():
     feature_extraction(data)
 
     kf_splits = KFold(data)
+    sum_scores = 0
     for i in xrange(len(kf_splits.train)):
+        print "========= Cross Validation Iteration ", i +1, " out of ", len(kf_splits.train), " ========="
+        # Data Processing and Normalization
         train = kf_splits.train[i]
         test = kf_splits.test[i]
         (X_train, y_train, X_test, y_test) = create_datasets(data, train, test)
+        normalize_data(X_train, X_test)
 
-        # Normalize data here
+        # Model Training
+        model = Sequential()
+        model.add(LSTM(100, input_dim=7))
+        model.add(Dense(1, activation='sigmoid'))
+        model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+        model.fit(X_train, y_train, validation_data=(X_test, y_test), nb_epoch=3, batch_size=30)
 
-    return X_train, y_train, X_test, y_test
+        # Evaluation of model
+        score = model.evaluate(X_test, y_test, verbose=0)
+        print("Accuracy: %.2f%%" % (scores[1]*100))
+        sum_scores += scores[1]
+    print "========================="
+    accuracy = sum_scores/len(kf_splits.train)
+    print "Cross validation accuracy: ", accuracy
 
 if __name__== '__main__':
-    X_train, y_train, X_test, y_test = evaluate_model()
+    evaluate_model()

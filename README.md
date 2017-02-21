@@ -49,8 +49,15 @@ dataset = process.load_dataset()
 ```
 to your script.
 
-### Step 2: Train the model
-TBD
+### Step 2: Training and evaluating the model
+As of now, evaluation of our model is done using k-fold cross validation. As such, training
+are tightly coupled. 
+
+K-Fold accuracy can be done by doing the following:
+'''
+import model
+model.evaluate_model()
+'''
 
 
 ### Step 3: Run the model
