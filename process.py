@@ -52,6 +52,7 @@ def generate_svc_path(subject_id, task_index):
     """
     return "%s/%s/%s__%i_1.svc" % (SVC_DIR, subject_id, subject_id, task_index)
 
+
 def parse_svc(path):
     """Processes the data in an .svc file to a numpy array
 
