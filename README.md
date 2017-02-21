@@ -54,10 +54,10 @@ As of now, evaluation of our model is done using k-fold cross validation. As suc
 are tightly coupled. 
 
 K-Fold accuracy can be done by doing the following:
-'''
+```
 import model
 model.evaluate_model()
-'''
+```
 
 
 ### Step 3: Run the model
