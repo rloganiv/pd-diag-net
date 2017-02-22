@@ -34,6 +34,7 @@ def parse_corpus(path):
 
     # Replace PD status with a binary variable.
     df['PD status'] = df['PD status'] == 'ON'
+    df['PD status'] = df['PD status'].astype(int)
     # --- ADD OTHER PROCESSING STEPS HERE ---
 
     return df

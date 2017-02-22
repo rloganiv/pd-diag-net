@@ -149,13 +149,13 @@ def create_datasets(data, train, test):
         for task_data in data[subject_id].task.itervalues():
             task_data = task_data.reshape((1, task_data.shape[0], task_data.shape[1]))
             X_train[idx] = task_data
-            y_train[idx] = int(data[subject_id].info['PD status'])
+            y_train[idx] = data[subject_id].info['PD status']
 
     for idx, subject_id in enumerate(test):
         for task_data in data[subject_id].task.itervalues():
             task_data = task_data.reshape((1, task_data.shape[0], task_data.shape[1]))
             X_test[idx] = task_data
-            y_test[idx] = int(data[subject_id].info['PD status'])
+            y_test[idx] = data[subject_id].info['PD status']
 
     return X_train, y_train, X_test, y_test
 
@@ -197,10 +197,13 @@ def evaluate_model():
         model.fit(X_train, y_train, validation_data=(X_test, y_test),
                   nb_epoch=3, batch_size=5)
 
-        # Evaluation of model
-        score = model.evaluate(X_test, y_test, verbose=0)
-        print("Accuracy: %.2f%%" % (scores[1]*100))
-        sum_scores += scores[1]
+        # Save model
+        model_json = model.to_json()
+        with open("model_%i.json" % i, "w") as json_file:
+            json_file.write(model_json)
+        # Save weights
+        model.save_weights("model_%i.h5" % i)
+
     print "========================="
     accuracy = sum_scores/len(kf_splits.train)
     print "Cross validation accuracy: ", accuracy

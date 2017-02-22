@@ -4,3 +4,5 @@ PaHaW
 
 # Do not track compiled files
 *.pyc
+*.h5
+*.json
