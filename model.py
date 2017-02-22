@@ -4,6 +4,7 @@ from keras.layers import Dense, Activation, LSTM
 
 import numpy as np
 import process
+import pdb
 
 
 class Splits(object):
@@ -20,7 +21,7 @@ class Splits(object):
 
 def transform_position(data):
     """Transform position values into diplacement values.
-    
+
     Args:
         data: dictionary. Contains our data where the key is the subject. See process.py for more information.
     """
@@ -29,17 +30,18 @@ def transform_position(data):
             # Subtract the previous time point's coordinates
             task_data[1:, 0:2] -= task_data[0:-1, 0:2]
             # Set starting coordinates to (0, 0)
-            taks_data[0,0:2] = 0
+            task_data[0,0:2] = 0
 
 
 def pad_sequence(data, max_len=500):
     """Pad data so all sequences have uniform length. This is done by adding sequences with zeros. We also
-        add an extra binary feature that is 1 when data is availble at that time and 0 when we are padding. 
+        add an extra binary feature that is 1 when data is availble at that
+        time and 0 when we are padding.
         If a time sequence is over max_len, the extra time points are removed.
 
     Args:
         data: dictionary. Contains our data where the key is the subject. See process.py for more information.
-        max_len: int. Max length of all time series. 
+        max_len: int. Max length of all time series.
     """
     for subject in data.itervalues():
         for task_key, task_data in subject.task.iteritems():
@@ -61,7 +63,7 @@ def remove_time(data):
     for subject in data.itervalues():
         for task_key, task_data in subject.task.iteritems():
             task_data = np.delete(task_data, 2, axis=1)
-        subject.task[task_key] = task_data
+            subject.task[task_key] = task_data
 
 
 def feature_extraction(data):
@@ -80,13 +82,14 @@ def feature_extraction(data):
 
 
 def KFold(data, n_splits=10):
-    """Performs a K-Fold split of our data 
-    
+    """Performs a K-Fold split of our data
+
     Args:
         data: dictionary. Contains our data where the key is the subject. See process.py for more information.
 
     Returns:
-        kf: list. Contains a dictionary for each split. Each dictionary has a 'train' and 'test' key indicating the 
+        kf: list. Contains a dictionary for each split. Each dictionary has a
+        'train' and 'test' key indicating the
             subjects of each set.
     """
     from copy import copy
@@ -117,11 +120,11 @@ def KFold(data, n_splits=10):
 
 def create_datasets(data, train, test):
     """Creates the training and testing datasets from the subjects consitituting each set.
-    
+
     Args:
         data: dictionary. Contains our data where the key is the subject. See process.py for more information.
-        train: list. A list of subjects in the training set  
-        test: list. A list of subjects in the testing set. Subjects in the testing set are mutually exclusive from the 
+        train: list. A list of subjects in the training set
+        test: list. A list of subjects in the testing set. Subjects in the testing set are mutually exclusive from the
             training set.
     Returns:
         X_train, y_train, X_test, y_test: numpy arrays. Features and predictions for the training and test set.
@@ -130,10 +133,10 @@ def create_datasets(data, train, test):
     num_test = 0
 
     # Get the number of training and testing sequences
-    for subject in train:
-        num_train += len(subject.task)
-    for subject in test:
-        num_test += len(subject.task)
+    for subject_id in train:
+        num_train += len(data[subject_id].task)
+    for subject_id in test:
+        num_test += len(data[subject_id].task)
 
     # Hard-coded train and test sets
     X_train = np.empty(shape=(num_train, 16071 ,7))
@@ -142,27 +145,27 @@ def create_datasets(data, train, test):
     y_test = np.empty(shape=(num_test, 1))
 
     # Extract training and test sets from data dictionary
-    for idx, subject in enumerate(train):
-        for task_data in train.task.itervalues():
+    for idx, subject_id in enumerate(train):
+        for task_data in data[subject_id].task.itervalues():
             task_data = task_data.reshape((1, task_data.shape[0], task_data.shape[1]))
             X_train[idx] = task_data
-            y_train[idx] = int(subject.info['PD status'])
+            y_train[idx] = int(data[subject_id].info['PD status'])
 
-    for idx, subject in enumerate(test):
-        for task_data in test.task.itervalues():
+    for idx, subject_id in enumerate(test):
+        for task_data in data[subject_id].task.itervalues():
             task_data = task_data.reshape((1, task_data.shape[0], task_data.shape[1]))
             X_test[idx] = task_data
-            y_test[idx] = int(subject.info['PD status'])
+            y_test[idx] = int(data[subject_id].info['PD status'])
 
     return X_train, y_train, X_test, y_test
 
 
 def normalize_data(X_train, X_test):
-    """ Normalizes features in the training set to be in range [0, 1]. Then applies transformation 
-        to test set. 
+    """ Normalizes features in the training set to be in range [0, 1]. Then applies transformation
+        to test set.
 
     Args:
-        X_train: numpy array. 3D matrix containing our training sequences 
+        X_train: numpy array. 3D matrix containing our training sequences
         X_test: numpy array. 3D array containing our test sequences
     """
     max_feature_val = np.max(np.max(X_train, axis=1), axis=0) # highest feature values in training set
@@ -174,9 +177,7 @@ def evaluate_model():
         of our model.
     """
     data = process.load_dataset()
-    print data[0].task
     feature_extraction(data)
-    print data[0].task
 
     kf_splits = KFold(data)
     sum_scores = 0
@@ -193,7 +194,8 @@ def evaluate_model():
         model.add(LSTM(100, input_dim=7))
         model.add(Dense(1, activation='sigmoid'))
         model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
-        model.fit(X_train, y_train, validation_data=(X_test, y_test), nb_epoch=3, batch_size=30)
+        model.fit(X_train, y_train, validation_data=(X_test, y_test),
+                  nb_epoch=3, batch_size=5)
 
         # Evaluation of model
         score = model.evaluate(X_test, y_test, verbose=0)
