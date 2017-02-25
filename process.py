@@ -1,6 +1,7 @@
 """Process the PaHaW dataset into NumPy arrays"""
 import numpy as np
 import pandas as pd
+import pdb
 import pickle
 
 
@@ -23,13 +24,15 @@ class Subject(object):
 
 class PaHaWDataset(object):
     """A dataset object"""
-    def __init__(self, subjects, method=None, subsample_rate=100, window_size=100,
-                 stride=25):
+    def __init__(self, subjects):
         self.subjects = subjects
-        self.method = method
-        self.subsample_rate = subsample_rate
-        self.window_size = window_size
-        self.stride = stride
+
+        # Default values
+        self._maxlen = None
+        self._method = None
+        self.subsample_rate = 100
+        self.window_size = 100
+        self.stride = 20
 
     def subsample(self, task):
         """Subsample rows from a task"""
@@ -41,6 +44,32 @@ class PaHaWDataset(object):
         return [
             task[(i*self.stride):(i*self.stride + self.window_size), :] for i in xrange(n_windows)
         ]
+
+    def summarize(self, task):
+        """Convert sequence of task values into summary statistics"""
+        in_air = task[:, 3] == 0
+        try:
+            summary_vect = np.array([
+                np.std(task[in_air, 13]), # Std. dev. of in air velocity
+                np.min(task[in_air, 11]), # Min of vertical jerk
+                np.std(task[in_air, 14]), # Std. dev. of in air accel.
+                # Range of horizontal jerk
+                np.max(task[in_air, 12]) - np.min(task[in_air, 12]),
+                np.std(task[in_air, 15]), # Std. dev of in air jerk
+                # Range of horizontal accel.
+                np.max(task[in_air, 10]) - np.min(task[in_air, 10]),
+                # Range of horizontal velocity.
+                np.max(task[in_air, 8]) - np.min(task[in_air, 8]),
+                # 75th percentile of on-surface horizontal velocity
+                np.percentile(task[np.logical_not(in_air), 8], 0.75),
+                np.min(task[in_air, 10]) # Min. in air vertical accel.
+            ])
+            return summary_vect
+        except:
+            # If there are issues generating summary stats it is probably
+            # because pen was never lifted from paper - e.g. in task 1. We will
+            # just skip the task if this happens.
+            pass
 
     def update(self):
         from keras.preprocessing import sequence
@@ -58,12 +87,26 @@ class PaHaWDataset(object):
                     tasks += self.window(task)
             if self.method is None:
                 tasks = subject.task.values()
+            if self.method is 'summary':
+                tasks = [self.summarize(task) for task in
+                         subject.task.itervalues()]
+                tasks = [task for task in tasks if task is not None]
             x += tasks
             y += [subject.info['PD status']] * len(tasks)
 
-        # Replace x and y attributes with updated numpy arrays
-        self.x = sequence.pad_sequences(x)
-        self.y = np.array(y)
+        # Convert to arrays
+        if self.method != 'summary':
+            x = sequence.pad_sequences(x, maxlen=self.maxlen, dtype='float32')
+        else:
+            x = np.vstack(x)
+        y = np.array(y, dtype='float32')
+
+        # Normalize x-values
+        # x = x / np.max(x, axis=(0,1))
+
+        # Assign attributes
+        self.x = x
+        self.y = y
 
     @property
     def method(self):
@@ -71,11 +114,20 @@ class PaHaWDataset(object):
 
     @method.setter
     def method(self, method):
-        if method in ['subsample', 'window', None]:
+        if method in ['subsample', 'window', 'summary', None]:
             self._method = method
             self.update()
         else:
             raise ValueError('Invalid method')
+
+    @property
+    def maxlen(self):
+        return self._maxlen
+
+    @maxlen.setter
+    def maxlen(self, maxlen):
+        self._maxlen = maxlen
+        self.update()
 
     @property
     def subsample_rate(self):
@@ -123,7 +175,7 @@ def parse_corpus(path):
     Returns:
         pandas.dataframe. Contains the processed spreadsheet data.
     """
-    df = pd.read_excel(path) 
+    df = pd.read_excel(path)
     # Replace PD status with a binary variable.
     df['PD status'] = df['PD status'] == 'ON'
     df['PD status'] = df['PD status'].astype(int)
@@ -156,12 +208,25 @@ def parse_svc(path):
 
     Returns:
         np.array. Each row of the array is a sample. The columns represent:
-            0: y-displacement,
-            1: x-displacement,
-            2: button state,
-            3: azimuth,
-            4: altitude,
-            5: pressure
+            0: y-value,
+            1: x-value,
+            2: timestamp,
+            3: button state,
+            4: azimuth,
+            5: altitude,
+            6: pressure,
+            7: y-velocity,
+            8: x-velocity,
+            9: y-acceleration,
+            10: x-acceleration,
+            11: y-jerk,
+            12: x-jerk,
+            13: velocity,
+            14: acceleration,
+            15: jerk,
+            16: azimuth-velocity,
+            17: altitude-velocity,
+            18: pressure-velocity,
     """
     # Open the file
     with open(path, 'r') as svc_file:
@@ -176,14 +241,39 @@ def parse_svc(path):
 
     # ---Process the data---
 
-    # x,y coords to displacement
-    array[1:, 0:2] -= array[0:-1, 0:2]
-    array[0, 0:2] = 0
-
     # remove time stamp
-    array = np.delete(array, 2, axis=1)
+    # array = np.delete(array, 2, axis=1)
+    n = array.shape[0]
 
-    return array
+    # position based velocity, acceleration, and jerk
+    xy_vel = displace(array[:,0:2])
+    xy_accel = displace(xy_vel)
+    xy_jerk = displace(xy_accel)
+
+    # magnitudes of previous measurements
+    m_vel = np.linalg.norm(xy_vel, axis=1).reshape((n, 1))
+    m_accel = np.linalg.norm(xy_accel, axis=1).reshape((n, 1))
+    m_jerk = np.linalg.norm(xy_jerk, axis=1).reshape((n, 1))
+
+    # rate of change of azimuth, altitude, and pressure
+    aap_vel = displace(array[:,4:])
+
+    # add task id as feature
+    # new_col = i * np.ones((array.shape[0],1))
+    out = np.concatenate((array, xy_vel, xy_accel, xy_jerk, m_vel, m_accel,
+                          m_jerk, aap_vel), axis=1)
+    return out
+
+
+def displace(array):
+    """Generates displacement vectors for columns in an array.
+
+    Arg:
+        array: np.array. Vectors to be displaced.
+    """
+    disp = np.zeros(shape=array.shape)
+    disp[1:,:] = array[1:,:] - array[0:-1,:]
+    return disp
 
 
 def extract_datasets(test_fraction = 0.333):
@@ -193,8 +283,9 @@ def extract_datasets(test_fraction = 0.333):
         train, test: PaHaWDataset() objects.
     """
     import random
-    train_subjects = []
-    test_subjects = []
+    #train_subjects = []
+    #test_subjects = []
+    subjects = []
 
     # Extract data from corpus
     corpus = parse_corpus(CORPUS_PATH)
@@ -215,19 +306,22 @@ def extract_datasets(test_fraction = 0.333):
                 subject.task[i] = task_data
             except IOError:
                 print 'Subject %s did not perform task %i' % (subject_id, i)
-        if random.random() < test_fraction:
-            test_subjects.append(subject)
-        else:
-            train_subjects.append(subject)
+        # if random.random() < test_fraction:
+        #     test_subjects.append(subject)
+        # else:
+        #     train_subjects.append(subject)
+        subjects.append(subject)
     # Load subjects into datasets
-    train = PaHaWDataset(train_subjects)
-    test = PaHaWDataset(test_subjects)
+    # train = PaHaWDataset(train_subjects)
+    # test = PaHaWDataset(test_subjects)
+    data = PaHaWDataset(subjects)
 
-    return train, test
+    # return train, test
+    return data
 
 
 if __name__ == '__main__':
-    train, test  = extract_datasets()
+    data = extract_datasets()
     with open('PaHaW/processed_data.pkl', 'wb') as pkl_file:
-        pickle.dump((train, test), pkl_file)
+        pickle.dump(data, pkl_file)
 
