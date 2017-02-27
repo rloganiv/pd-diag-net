@@ -10,7 +10,7 @@ import scipy
 CORPUS_PATH = 'PaHaW/PaHaW_files/corpus_PaHaW.xlsx'
 SVC_DIR = 'PaHaW/PaHaW_public'
 IMG_DIM = (6000, 10000)
-TINY_DIM = (600, 1000)
+TINY_DIM = (300, 500)
 
 class Subject(object):
     """Stores the subject level data
@@ -97,8 +97,8 @@ class PaHaWDataset(object):
                 img_paper[y[on_paper] + dy, x[on_paper] + dx] += 1
                 img_air[y[in_air] + dy, x[in_air] + dx] += 1
         # Downsample images
-        img_paper = img_paper[::10, ::10]
-        img_air = img_air[::10, ::10]
+        img_paper = img_paper[::20, ::20]
+        img_air = img_air[::20, ::20]
         return img_paper, img_air
 
     def update(self):
@@ -139,8 +139,8 @@ class PaHaWDataset(object):
             x = np.vstack(x)
         elif self.method == 'img':
             pdb.set_trace()
-            on_paper = np.dstack([task[0] for task in x])
-            in_air = np.dstack([task[1] for task in x])
+            on_paper = np.stack([task[0].reshape(1, TINY_DIM[0], TINY_DIM[1])  for task in x])
+            in_air = np.stack([task[1].reshape(1, TINY_DIM[0], TINY_DIM[1]) for task in x])
             x = on_paper, in_air
         else:
             x = sequence.pad_sequences(x, maxlen=self.maxlen, dtype='float32')
