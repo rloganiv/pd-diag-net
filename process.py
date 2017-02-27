@@ -3,12 +3,14 @@ import numpy as np
 import pandas as pd
 import pdb
 import pickle
+import scipy
 
 
 # Constants
 CORPUS_PATH = 'PaHaW/PaHaW_files/corpus_PaHaW.xlsx'
 SVC_DIR = 'PaHaW/PaHaW_public'
-
+IMG_DIM = (6000, 10000)
+TINY_DIM = (600, 1000)
 
 class Subject(object):
     """Stores the subject level data
@@ -71,6 +73,34 @@ class PaHaWDataset(object):
             # just skip the task if this happens.
             pass
 
+    def extract_imgs(self, task):
+        # Initialize image arrays
+        img_paper = np.zeros(IMG_DIM)
+        img_air = np.zeros(IMG_DIM)
+        # Extract coordinates
+        x = task[:, 1]
+        y = task[:, 0]
+        idx = task[:, 3]
+        # Upsample handwriting samples
+        t = np.arange(task.shape[0])
+        dt = np.linspace(0, task.shape[0], 100*task.shape[0])
+        x = np.interp(dt, t, x).astype(np.int16)
+        y = np.interp(dt, t, y).astype(np.int16)
+        idx = np.interp(dt, t, idx).astype(np.int16)
+        # Seperate on-paper and in-air samples
+        on_paper = idx == 1
+        in_air = idx == 0
+        # Create thickened images
+        n = 5
+        for dx in xrange(-n, n+1):
+            for dy in xrange(-n, n+1):
+                img_paper[y[on_paper] + dy, x[on_paper] + dx] += 1
+                img_air[y[in_air] + dy, x[in_air] + dx] += 1
+        # Downsample images
+        img_paper = img_paper[::10, ::10]
+        img_air = img_air[::10, ::10]
+        return img_paper, img_air
+
     def update(self):
         from keras.preprocessing import sequence
         x = []
@@ -79,6 +109,7 @@ class PaHaWDataset(object):
         # Process the task data according to active method for each subject.
         # Append results to x and y
         for subject in self.subjects:
+            print subject.info['ID']
             if self.method == 'subsample':
                 tasks = [self.subsample(task) for task in subject.task.itervalues()]
             if self.method == 'window':
@@ -88,17 +119,32 @@ class PaHaWDataset(object):
             if self.method is None:
                 tasks = subject.task.values()
             if self.method is 'summary':
+                print subject.info['ID']
                 tasks = [self.summarize(task) for task in
                          subject.task.itervalues()]
                 tasks = [task for task in tasks if task is not None]
+            if self.method is 'img':
+                img_paper = np.zeros(TINY_DIM)
+                img_air = np.zeros(TINY_DIM)
+                for task in subject.task.itervalues():
+                    dp, da = self.extract_imgs(task)
+                    img_paper += dp
+                    img_air += da
+                tasks = [(img_paper, img_air)]
             x += tasks
             y += [subject.info['PD status']] * len(tasks)
 
         # Convert to arrays
-        if self.method != 'summary':
-            x = sequence.pad_sequences(x, maxlen=self.maxlen, dtype='float32')
-        else:
+        if self.method == 'summary':
             x = np.vstack(x)
+        elif self.method == 'img':
+            pdb.set_trace()
+            on_paper = np.dstack([task[0] for task in x])
+            in_air = np.dstack([task[1] for task in x])
+            x = on_paper, in_air
+        else:
+            x = sequence.pad_sequences(x, maxlen=self.maxlen, dtype='float32')
+
         y = np.array(y, dtype='float32')
 
         # Normalize x-values
@@ -114,7 +160,7 @@ class PaHaWDataset(object):
 
     @method.setter
     def method(self, method):
-        if method in ['subsample', 'window', 'summary', None]:
+        if method in ['subsample', 'window', 'summary', 'img', None]:
             self._method = method
             self.update()
         else:
@@ -292,7 +338,7 @@ def extract_datasets(test_fraction = 0.333):
 
     # Build a Subject object for each row in the corpus and randomly assign to
     # train or test dataset
-    for row in corpus.iterrows():
+    for i, row in enumerate(corpus.iterrows()):
         subject = Subject()
         subject.info = row[1]
         subject.task = dict()
@@ -321,7 +367,11 @@ def extract_datasets(test_fraction = 0.333):
 
 
 if __name__ == '__main__':
+    print "Extracting data"
     data = extract_datasets()
-    with open('PaHaW/processed_data.pkl', 'wb') as pkl_file:
+    data.method = 'img'
+    print "Saving data"
+    with open('PaHaW/processed_img_data.pkl', 'wb') as pkl_file:
         pickle.dump(data, pkl_file)
+    print "Done!"
 
