@@ -64,7 +64,18 @@ class PaHaWDataset(object):
                 np.max(task[in_air, 8]) - np.min(task[in_air, 8]),
                 # 75th percentile of on-surface horizontal velocity
                 np.percentile(task[np.logical_not(in_air), 8], 0.75),
-                np.min(task[in_air, 10]) # Min. in air vertical accel.
+                np.min(task[in_air, 10]), # Min. in air vertical accel.
+                # 99-1 percentile vertical velocity
+                np.percentile(task[in_air, 8], 0.99) - np.percentile(task[in_air, 8], 0.01),
+                # Mean velocity
+                np.mean(task[in_air, 13]),
+                # Mean altitutde velocity
+                np.mean(task[in_air, 17]),
+                # 99-1 percentile altitude velocity
+                np.percentile(task[in_air, 17], 0.99) - np.percentile(task[in_air, 17], 0.01),
+                # Std dev. altitude velocity
+                np.std(task[in_air, 17])
+
             ])
             return summary_vect
         except:
@@ -109,7 +120,6 @@ class PaHaWDataset(object):
         # Process the task data according to active method for each subject.
         # Append results to x and y
         for subject in self.subjects:
-            print subject.info['ID']
             if self.method == 'subsample':
                 tasks = [self.subsample(task) for task in subject.task.itervalues()]
             if self.method == 'window':
@@ -119,7 +129,6 @@ class PaHaWDataset(object):
             if self.method is None:
                 tasks = subject.task.values()
             if self.method is 'summary':
-                print subject.info['ID']
                 tasks = [self.summarize(task) for task in
                          subject.task.itervalues()]
                 tasks = [task for task in tasks if task is not None]
@@ -143,7 +152,7 @@ class PaHaWDataset(object):
             in_air = np.stack([task[1].reshape(1, TINY_DIM[0], TINY_DIM[1]) for task in x])
             x = on_paper, in_air
         else:
-            x = sequence.pad_sequences(x, maxlen=self.maxlen, dtype='float32')
+            x = sequence.pad_sequences(x, maxlen=400, dtype='float32')
 
         y = np.array(y, dtype='float32')
 
@@ -243,7 +252,7 @@ def generate_svc_path(subject_id, task_index):
     return "%s/%s/%s__%i_1.svc" % (SVC_DIR, subject_id, subject_id, task_index)
 
 
-def parse_svc(path):
+def parse_svc(path, i):
     """Processes the data in an .svc file to a numpy array
 
     For more information on the .svc format refer to the 'info.txt' file
@@ -273,7 +282,11 @@ def parse_svc(path):
             16: azimuth-velocity,
             17: altitude-velocity,
             18: pressure-velocity,
+            19-26: One hot encoding of task
+
     """
+    from sklearn.preprocessing import OneHotEncoder
+
     # Open the file
     with open(path, 'r') as svc_file:
         samples = svc_file.readlines()
@@ -305,7 +318,11 @@ def parse_svc(path):
     aap_vel = displace(array[:,4:])
 
     # add task id as feature
-    # new_col = i * np.ones((array.shape[0],1))
+    # print array.shape
+    new_col = (i-1) * np.ones((n,1))
+    enc = OneHotEncoder(n_values=8)
+    # one_hot = np.asarray(enc.fit_transform(new_col).todense())
+
     out = np.concatenate((array, xy_vel, xy_accel, xy_jerk, m_vel, m_accel,
                           m_jerk, aap_vel), axis=1)
     return out
@@ -348,7 +365,7 @@ def extract_datasets(test_fraction = 0.333):
         for i in xrange(1, 9):
             try:
                 svc_path = generate_svc_path(subject_id, i)
-                task_data = parse_svc(svc_path)
+                task_data = parse_svc(svc_path, i)
                 subject.task[i] = task_data
             except IOError:
                 print 'Subject %s did not perform task %i' % (subject_id, i)
@@ -369,7 +386,6 @@ def extract_datasets(test_fraction = 0.333):
 if __name__ == '__main__':
     print "Extracting data"
     data = extract_datasets()
-    data.method = 'img'
     print "Saving data"
     with open('PaHaW/processed_img_data.pkl', 'wb') as pkl_file:
         pickle.dump(data, pkl_file)
